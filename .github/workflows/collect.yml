@@ -1,0 +1,41 @@
+name: collect
+
+on:
+  schedule:
+    # GitHub cron은 UTC. 지연·누락될 수 있어 여러 번 (이미 있으면 아무것도 안 함)
+    - cron: "0 12 * * 6" # 토 21:00 KST
+    - cron: "0 13 * * 6" # 토 22:00 KST
+    - cron: "0 22 * * 6" # 일 07:00 KST
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [".github/workflows/collect.yml", "scripts/**"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: collect
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/collect.mjs
+      - name: commit
+        run: |
+          if [ -z "$(git status --porcelain draws latest.json)" ]; then
+            echo "변경 없음"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add draws latest.json
+          git commit -m "data: $(node -p "require('./latest.json').latestRound")회까지 당첨 데이터"
+          git push
